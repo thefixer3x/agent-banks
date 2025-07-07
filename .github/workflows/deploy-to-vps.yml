@@ -1,0 +1,159 @@
+name: Deploy Agent-Banks to VPS
+
+on:
+  push:
+    branches: [main]
+    paths: ['agent_banks_workspace/**']
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment'
+        required: false
+        default: 'false'
+
+jobs:
+  deploy:
+    name: Deploy to Hostinger VPS
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Create Deployment Package
+      run: |
+        echo "🚀 Creating deployment package..."
+        cd agent_banks_workspace
+        
+        # Create deployment directory
+        mkdir -p /tmp/vps-deployment
+        cp -r * /tmp/vps-deployment/
+        
+        # Create installation script
+        cat > /tmp/vps-deployment/auto_install.sh << 'EOF'
+        #!/bin/bash
+        echo "🚀 Auto-installing Agent-Banks on VPS..."
+        
+        # Setup directories
+        mkdir -p /root/agent-banks
+        cd /root/agent-banks
+        
+        # Copy all files
+        cp -r /tmp/vps-deployment/* .
+        
+        # Setup Python environment
+        python3 -m venv venv
+        source venv/bin/activate
+        
+        # Install dependencies
+        pip install --upgrade pip
+        pip install flask flask-socketio websockets fastapi uvicorn
+        pip install asyncio aiohttp psutil requests python-dotenv
+        pip install playwright browserbase pyttsx3 pygame || echo "Optional deps failed"
+        
+        # Set permissions
+        chmod +x *.py *.sh
+        
+        # Create systemd service
+        cat > /etc/systemd/system/agent-banks.service << 'SYSTEMD_EOF'
+        [Unit]
+        Description=Agent-Banks AI Assistant
+        After=network.target
+        
+        [Service]
+        Type=simple
+        User=root
+        WorkingDirectory=/root/agent-banks
+        Environment=PATH=/root/agent-banks/venv/bin
+        EnvironmentFile=/root/agent-banks/vps_config.env
+        ExecStart=/root/agent-banks/venv/bin/python unified_frontend.py
+        Restart=always
+        RestartSec=10
+        
+        [Install]
+        WantedBy=multi-user.target
+        SYSTEMD_EOF
+        
+        # Enable service
+        systemctl daemon-reload
+        systemctl enable agent-banks
+        
+        echo "✅ Agent-Banks installation complete!"
+        echo "Next: Edit /root/agent-banks/vps_config.env with your API keys"
+        echo "Then: systemctl start agent-banks"
+        EOF
+        
+        chmod +x /tmp/vps-deployment/auto_install.sh
+        
+    - name: Deploy via Multiple Methods
+      env:
+        VPS_HOST: srv896342.hstgr.cloud
+        VPS_IP: 168.231.74.29
+      run: |
+        echo "🚀 Attempting deployment via multiple methods..."
+        
+        # Method 1: Try SSH with different keys/ports
+        echo "📡 Method 1: SSH deployment..."
+        
+        # Try different SSH configurations
+        for port in 22 2222 22222; do
+          echo "Trying SSH on port $port..."
+          if timeout 10 ssh -p $port -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@${VPS_HOST} 'echo "SSH Success on port $port"'; then
+            echo "✅ SSH working on port $port"
+            
+            # Upload and install
+            scp -P $port -r /tmp/vps-deployment root@${VPS_HOST}:/tmp/
+            ssh -p $port root@${VPS_HOST} 'cd /tmp/vps-deployment && bash auto_install.sh'
+            echo "✅ Deployment complete via SSH"
+            exit 0
+          fi
+        done
+        
+        echo "⚠️  SSH deployment failed, trying alternatives..."
+        
+        # Method 2: Web-based deployment preparation
+        echo "📦 Method 2: Creating web deployment package..."
+        cd /tmp/vps-deployment
+        tar -czf agent-banks-github-deploy.tar.gz *
+        
+        echo "✅ Deployment package created: agent-banks-github-deploy.tar.gz"
+        echo "📋 Manual deployment instructions:"
+        echo "1. Download: agent-banks-github-deploy.tar.gz"
+        echo "2. Upload to VPS via web panel"
+        echo "3. Extract: tar -xzf agent-banks-github-deploy.tar.gz"
+        echo "4. Install: bash auto_install.sh"
+        echo "5. Configure: edit vps_config.env"
+        echo "6. Start: systemctl start agent-banks"
+        
+    - name: Upload Deployment Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: agent-banks-vps-deployment
+        path: /tmp/vps-deployment/
+        retention-days: 30
+        
+    - name: Create Deployment Summary
+      run: |
+        echo "## 🚀 Agent-Banks VPS Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Deployment Package Created" >> $GITHUB_STEP_SUMMARY
+        echo "- **Target VPS**: srv896342.hstgr.cloud (168.231.74.29)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Package**: agent-banks-github-deploy.tar.gz" >> $GITHUB_STEP_SUMMARY
+        echo "- **Installation**: Automated via auto_install.sh" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔧 Manual Deployment Steps" >> $GITHUB_STEP_SUMMARY
+        echo "1. Download deployment artifact from this workflow" >> $GITHUB_STEP_SUMMARY
+        echo "2. Upload to VPS via Hostinger panel" >> $GITHUB_STEP_SUMMARY
+        echo "3. Extract: \`tar -xzf agent-banks-github-deploy.tar.gz\`" >> $GITHUB_STEP_SUMMARY
+        echo "4. Install: \`bash auto_install.sh\`" >> $GITHUB_STEP_SUMMARY
+        echo "5. Configure API keys in \`vps_config.env\`" >> $GITHUB_STEP_SUMMARY
+        echo "6. Start service: \`systemctl start agent-banks\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🌐 Access Points" >> $GITHUB_STEP_SUMMARY
+        echo "- **Web Interface**: http://srv896342.hstgr.cloud:5000" >> $GITHUB_STEP_SUMMARY
+        echo "- **Health Check**: http://srv896342.hstgr.cloud:5000/health" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,310 @@
+#!/bin/bash
+
+# VPS Manager - Agent-Banks VPS Management CLI
+# Modeled after CUA help system
+
+set -e
+
+# Configuration
+VPS_HOST="srv896342.hstgr.cloud"
+VPS_IP="168.231.74.29"
+VPS_IPV6="2a02:4780:2d:cc43::1"
+VPS_USER="root"
+VPS_SSH_KEY="~/.ssh/id_rsa_vps"
+DEPLOYMENT_DIR="/root/agent-banks"
+
+# Color codes (same as CUA)
+CYAN='\033[0;36m'
+YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+show_help() {
+    echo -e "${CYAN}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║                    🤖 Agent-Banks VPS                        ║"
+    echo "║              Personal AI Assistant Manager                   ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+    echo -e "${YELLOW}USAGE:${NC} vps <command> [options]"
+    echo ""
+    echo -e "${YELLOW}DEPLOYMENT COMMANDS:${NC}"
+    echo -e "  ${GREEN}deploy${NC}         Create and deploy Agent-Banks package"
+    echo -e "  ${GREEN}package${NC}        Create deployment package only"
+    echo -e "  ${GREEN}upload${NC}         Upload package to VPS"
+    echo -e "  ${GREEN}install${NC}        Install Agent-Banks on VPS"
+    echo ""
+    echo -e "${YELLOW}SYSTEM COMMANDS:${NC}"
+    echo -e "  ${GREEN}start${NC}          Start Agent-Banks service"
+    echo -e "  ${GREEN}stop${NC}           Stop Agent-Banks service"
+    echo -e "  ${GREEN}restart${NC}        Restart Agent-Banks service"
+    echo -e "  ${GREEN}reboot${NC}         Reboot VPS server"
+    echo -e "  ${GREEN}status${NC}         Check service status"
+    echo -e "  ${GREEN}logs${NC}           View service logs"
+    echo -e "  ${GREEN}health${NC}         Run health checks"
+    echo ""
+    echo -e "${YELLOW}CONFIGURATION COMMANDS:${NC}"
+    echo -e "  ${GREEN}config${NC}         Edit configuration file"
+    echo -e "  ${GREEN}keys${NC}           Set API keys"
+    echo -e "  ${GREEN}hostname${NC}       Change VPS hostname"
+    echo -e "  ${GREEN}firewall${NC}       Configure firewall"
+    echo ""
+    echo -e "${YELLOW}CONNECTION COMMANDS:${NC}"
+    echo -e "  ${GREEN}ssh${NC}            Connect via SSH"
+    echo -e "  ${GREEN}test${NC}           Test VPS connection"
+    echo -e "  ${GREEN}ping${NC}           Ping VPS"
+    echo -e "  ${GREEN}web${NC}            Open web interface"
+    echo ""
+    echo -e "${YELLOW}MONITORING COMMANDS:${NC}"
+    echo -e "  ${GREEN}monitor${NC}        Real-time monitoring"
+    echo -e "  ${GREEN}backup${NC}         Backup Agent-Banks data"
+    echo -e "  ${GREEN}update${NC}         Update Agent-Banks"
+    echo -e "  ${GREEN}clean${NC}          Clean temporary files"
+    echo ""
+    echo -e "${YELLOW}EXAMPLES:${NC}"
+    echo -e "  ${CYAN}vps deploy${NC}                    # Full deployment"
+    echo -e "  ${CYAN}vps start${NC}                     # Start service"
+    echo -e "  ${CYAN}vps reboot${NC}                    # Reboot VPS after deployment"
+    echo -e "  ${CYAN}vps web${NC}                       # Open web interface"
+    echo -e "  ${CYAN}vps logs${NC}                      # View logs"
+    echo -e "  ${CYAN}vps config${NC}                    # Edit config"
+}
+
+test_connection() {
+    echo "🔍 Testing VPS connection..."
+    
+    # Test IPv4 first
+    if ping -c 2 $VPS_HOST >/dev/null 2>&1; then
+        echo "✅ VPS is reachable (IPv4)"
+    elif ping6 -c 2 $VPS_IPV6 >/dev/null 2>&1; then
+        echo "✅ VPS is reachable (IPv6)"
+    else
+        echo "❌ VPS ping failed (both IPv4 and IPv6)"
+        return 1
+    fi
+    
+    # Test SSH connection using VS Code's working method
+    if timeout 10 ssh -i $VPS_SSH_KEY -o ConnectTimeout=5 -o BatchMode=yes $VPS_USER@$VPS_IP 'echo "SSH OK"' >/dev/null 2>&1; then
+        echo "✅ SSH connection working (VS Code method)"
+        return 0
+    elif timeout 10 ssh -o ConnectTimeout=5 -o BatchMode=yes $VPS_USER@$VPS_HOST 'echo "SSH OK"' >/dev/null 2>&1; then
+        echo "✅ SSH connection working (hostname)"
+        return 0
+    elif timeout 10 ssh -o ConnectTimeout=5 -o BatchMode=yes $VPS_USER@[$VPS_IPV6] 'echo "SSH OK"' >/dev/null 2>&1; then
+        echo "✅ SSH connection working (IPv6)"
+        return 0
+    else
+        echo "⚠️  SSH connection failed (all methods)"
+        return 1
+    fi
+}
+
+create_simple_package() {
+    echo "📦 Creating simple deployment package..."
+    
+    PACKAGE_NAME="agent-banks-simple-$(date +%Y%m%d_%H%M%S)"
+    PACKAGE_DIR="/tmp/$PACKAGE_NAME"
+    
+    # Create package directory
+    mkdir -p $PACKAGE_DIR
+    
+    # Copy current files
+    cp -r . $PACKAGE_DIR/ 2>/dev/null || true
+    
+    # Create ultra-simple installation script
+    cat > $PACKAGE_DIR/ez_install.sh << 'EOF'
+#!/bin/bash
+echo "🚀 EZ Agent-Banks Installation"
+
+# Setup
+mkdir -p /root/agent-banks
+cd /root/agent-banks
+
+# Copy files (handle multiple possible locations)
+if [ -d "/tmp/agent-banks-simple-*" ]; then
+    cp -r /tmp/agent-banks-simple-*/* . 2>/dev/null || true
+fi
+if [ -f ~/*.tar.gz ]; then
+    tar -xzf ~/*.tar.gz 2>/dev/null || true
+    cp -r agent-banks-*/* . 2>/dev/null || true
+fi
+
+# Install Python deps (basic only)
+python3 -m venv venv
+source venv/bin/activate
+pip install flask websockets aiohttp python-dotenv
+
+# Create config template
+cat > api_keys.env << 'CONFIG'
+# Add your API keys here
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+export OPENROUTER_API_KEY="sk-or-your-key-here"
+export HOST=0.0.0.0
+export PORT=5000
+CONFIG
+
+chmod +x *.py
+
+echo "✅ Agent-Banks installed!"
+echo ""
+echo "📝 Next steps:"
+echo "1. Edit api_keys.env with your API keys"
+echo "2. Run: source venv/bin/activate && source api_keys.env"
+echo "3. Start: python3 unified_frontend.py"
+echo "4. Access: http://$(hostname):5000"
+EOF
+
+    chmod +x $PACKAGE_DIR/ez_install.sh
+    
+    # Create archive
+    cd /tmp
+    tar -czf "$PACKAGE_NAME.tar.gz" $PACKAGE_NAME/
+    
+    echo "✅ Package created: /tmp/$PACKAGE_NAME.tar.gz"
+    echo ""
+    echo "📋 Simple deployment:"
+    echo "1. Upload $PACKAGE_NAME.tar.gz to VPS"
+    echo "2. SSH: ssh $VPS_USER@$VPS_HOST"
+    echo "3. Extract: tar -xzf $PACKAGE_NAME.tar.gz"
+    echo "4. Install: cd $PACKAGE_NAME && bash ez_install.sh"
+    echo "5. Configure API keys and start!"
+}
+
+deploy_full() {
+    echo "🚀 Starting Agent-Banks deployment..."
+    
+    if test_connection; then
+        echo "📡 SSH available - direct deployment"
+        create_simple_package
+        
+        # Try to upload and install
+        LATEST_PACKAGE=$(ls -t /tmp/agent-banks-simple-*.tar.gz | head -1)
+        echo "📤 Uploading $LATEST_PACKAGE..."
+        
+        if scp -i $VPS_SSH_KEY "$LATEST_PACKAGE" $VPS_USER@$VPS_IP:~/; then
+            echo "✅ Upload successful"
+            echo "🔧 Installing..."
+            
+            ssh -i $VPS_SSH_KEY $VPS_USER@$VPS_IP << 'EOF'
+cd ~
+tar -xzf agent-banks-simple-*.tar.gz
+cd agent-banks-simple-*
+bash ez_install.sh
+EOF
+            echo "✅ Deployment complete!"
+            echo "🌐 Access: http://$VPS_HOST:5000"
+        else
+            echo "❌ Upload failed - use manual method"
+        fi
+    else
+        echo "📦 SSH not available - creating package for manual upload"
+        create_simple_package
+    fi
+}
+
+start_service() {
+    echo "🚀 Starting Agent-Banks..."
+    ssh $VPS_USER@$VPS_HOST << 'EOF'
+cd /root/agent-banks
+source venv/bin/activate 2>/dev/null || echo "No venv found"
+source api_keys.env 2>/dev/null || echo "No API keys loaded"
+nohup python3 unified_frontend.py > service.log 2>&1 &
+echo "✅ Agent-Banks started"
+EOF
+}
+
+stop_service() {
+    echo "🛑 Stopping Agent-Banks..."
+    ssh $VPS_USER@$VPS_HOST 'pkill -f unified_frontend.py' && echo "✅ Stopped" || echo "⚠️  Not running"
+}
+
+show_status() {
+    echo "📊 Agent-Banks Status:"
+    echo "  VPS: $VPS_HOST"
+    echo "  IPv4: $VPS_IP"
+    echo "  IPv6: $VPS_IPV6"
+    echo "  Web: http://$VPS_HOST:5000"
+    
+    if test_connection >/dev/null 2>&1; then
+        ssh $VPS_USER@$VPS_HOST << 'EOF'
+if pgrep -f unified_frontend.py >/dev/null; then
+    echo "  Status: ✅ RUNNING"
+else
+    echo "  Status: ❌ STOPPED"
+fi
+echo "  Files: $(ls /root/agent-banks/ 2>/dev/null | wc -l || echo 0) files"
+EOF
+    else
+        echo "  Status: ⚠️  SSH unavailable"
+    fi
+}
+
+view_logs() {
+    echo "📋 Viewing logs..."
+    ssh $VPS_USER@$VPS_HOST 'tail -20 /root/agent-banks/service.log 2>/dev/null || echo "No logs found"'
+}
+
+open_web() {
+    echo "🌐 Opening web interface..."
+    open "http://$VPS_HOST:5000" 2>/dev/null || echo "Open: http://$VPS_HOST:5000"
+}
+
+# Main command handler
+case "${1:-help}" in
+    "deploy")
+        deploy_full
+        ;;
+    "package")
+        create_simple_package
+        ;;
+    "start")
+        start_service
+        ;;
+    "stop")
+        stop_service
+        ;;
+    "restart")
+        stop_service
+        sleep 2
+        start_service
+        ;;
+    "reboot")
+        echo "🔄 Rebooting VPS server..."
+        echo "⚠️  This will restart the entire server!"
+        read -p "Continue? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            ssh $VPS_USER@$VPS_HOST 'sudo reboot' && echo "🔄 VPS reboot initiated" || echo "❌ Reboot failed"
+        else
+            echo "❌ Reboot cancelled"
+        fi
+        ;;
+    "status")
+        show_status
+        ;;
+    "logs")
+        view_logs
+        ;;
+    "test")
+        test_connection
+        ;;
+    "ssh")
+        ssh $VPS_USER@$VPS_HOST
+        ;;
+    "web")
+        open_web
+        ;;
+    "ping")
+        ping -c 4 $VPS_HOST
+        ;;
+    "help"|"--help"|"-h"|"")
+        show_help
+        ;;
+    *)
+        echo -e "${RED}❌ Unknown command: $1${NC}"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac
