@@ -23,6 +23,7 @@
 | **Logistics Platform** | [github.com/thefixer3x/logistics-platform](https://github.com/thefixer3x/logistics-platform) | Fleet management |
 | **Analytics Platform** | [github.com/thefixer3x/seftec-bank-insights](https://github.com/thefixer3x/seftec-bank-insights) | Banking & analytics |
 | **SEFTEC SaaS** | [github.com/thefixer3x/nxtgen-api-saas-platform](https://github.com/thefixer3x/nxtgen-api-saas-platform) | Enterprise API platform |
+| **VortexCore SaaS** | [github.com/thefixer3x/vortexcore-saas](https://github.com/thefixer3x/vortexcore-saas) | Advanced AI services & SDK reseller |
 
 ## 📊 Updated Ecosystem Map
 
@@ -36,11 +37,13 @@ The Fixer Initiative (Aggregator)
 │   ├── SUB-PRO (Personal-subscription-manager) ✅
 │   ├── Task Manager (sync-plan-flow) ✅
 │   └── Learning AI (nixie-whisper-scribe) ✅
-└── Business Platforms
-    ├── B2B Store (seftec-store) ✅
-    ├── Logistics (logistics-platform) ✅
-    ├── Analytics (seftec-bank-insights) ✅
-    └── SaaS Platform (nxtgen-api-saas-platform) ✅
+├── Business Platforms
+│   ├── B2B Store (seftec-store) ✅
+│   ├── Logistics (logistics-platform) ✅
+│   └── Analytics (seftec-bank-insights) ✅
+└── Enterprise SaaS
+    ├── SEFTEC SaaS (nxtgen-api-saas-platform) ✅
+    └── VortexCore SaaS (vortexcore-saas) ✅ NEW
 ```
 
 ## 🔄 Service Integration Matrix
@@ -56,6 +59,7 @@ The Fixer Initiative (Aggregator)
 | **logistics-platform** | SD-Ghost, Fixer | Fleet services |
 | **seftec-bank-insights** | SD-Ghost, Fixer | Financial analytics |
 | **nxtgen-api-saas** | ALL services | Enterprise API access |
+| **vortexcore-saas** | ALL services | Advanced AI & SDK reselling |
 
 ## 🎯 Quick Access Links
 
@@ -73,11 +77,14 @@ The Fixer Initiative (Aggregator)
 7. [SEFTEC Store](https://github.com/thefixer3x/seftec-store) - B2B Marketplace
 8. [Logistics Platform](https://github.com/thefixer3x/logistics-platform) - Fleet Management
 9. [SEFTEC Bank Insights](https://github.com/thefixer3x/seftec-bank-insights) - Analytics
+
+### Enterprise SaaS
 10. [NxtGen API SaaS](https://github.com/thefixer3x/nxtgen-api-saas-platform) - Enterprise APIs
+11. [VortexCore SaaS](https://github.com/thefixer3x/vortexcore-saas) - Advanced AI Services
 
 ## 📈 Ecosystem Status
 
-**Total Active Repositories**: 10
+**Total Active Repositories**: 11
 **Infrastructure Layer**: 3 projects
 **Application Layer**: 7 projects
 **All repositories exist**: ✅
