@@ -1,0 +1,223 @@
+{
+  "service_providers": {
+    "ai_services": {
+      "anthropic": {
+        "name": "Anthropic",
+        "type": "AI/LLM",
+        "endpoint": "https://api.anthropic.com/v1",
+        "models": ["claude-3-sonnet", "claude-3-haiku"],
+        "pricing": "usage_based",
+        "status": "active",
+        "fallback": "openai",
+        "use_cases": ["agent-banks", "task-manager", "saas-platforms"]
+      },
+      "openai": {
+        "name": "OpenAI",
+        "type": "AI/LLM",
+        "endpoint": "https://api.openai.com/v1",
+        "models": ["gpt-4", "gpt-3.5-turbo", "text-embedding-3"],
+        "pricing": "usage_based",
+        "status": "active",
+        "fallback": "openrouter",
+        "use_cases": ["all_projects"]
+      },
+      "openrouter": {
+        "name": "OpenRouter",
+        "type": "AI Gateway",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "models": ["multiple_providers"],
+        "pricing": "variable",
+        "status": "active",
+        "use_cases": ["fallback", "model_routing"]
+      },
+      "perplexity": {
+        "name": "Perplexity",
+        "type": "AI Search",
+        "endpoint": "https://api.perplexity.ai",
+        "models": ["pplx-7b-online", "pplx-70b-online"],
+        "pricing": "usage_based",
+        "status": "integration",
+        "use_cases": ["research", "search_enhancement"]
+      },
+      "google_ai": {
+        "name": "Google AI",
+        "type": "AI/ML",
+        "endpoint": "https://generativelanguage.googleapis.com",
+        "models": ["gemini-pro", "gemini-pro-vision"],
+        "pricing": "usage_based",
+        "status": "integration",
+        "use_cases": ["multimodal", "vision"]
+      },
+      "elevenlabs": {
+        "name": "ElevenLabs",
+        "type": "Voice AI",
+        "endpoint": "https://api.elevenlabs.io/v1",
+        "models": ["text-to-speech", "voice-cloning"],
+        "pricing": "character_based",
+        "status": "active",
+        "use_cases": ["agent-banks", "voice_features"]
+      }
+    },
+    "infrastructure": {
+      "supabase": {
+        "name": "Supabase",
+        "type": "Backend-as-a-Service",
+        "endpoint": "custom_url",
+        "services": ["database", "auth", "storage", "edge_functions"],
+        "pricing": "tiered",
+        "status": "active",
+        "use_cases": ["sd-ghost-protocol", "databases"]
+      },
+      "vercel": {
+        "name": "Vercel",
+        "type": "Platform-as-a-Service",
+        "endpoint": "https://api.vercel.com",
+        "services": ["hosting", "serverless", "edge_functions"],
+        "pricing": "tiered",
+        "status": "active",
+        "use_cases": ["frontend_hosting", "nextjs_apps"]
+      },
+      "netlify": {
+        "name": "Netlify",
+        "type": "Static Site Hosting",
+        "endpoint": "https://api.netlify.com/api/v1",
+        "services": ["hosting", "cdn", "build_automation"],
+        "pricing": "tiered",
+        "status": "active",
+        "use_cases": ["static_sites", "documentation"]
+      },
+      "google_cloud": {
+        "name": "Google Cloud",
+        "type": "Cloud Infrastructure",
+        "endpoint": "https://cloud.google.com/api",
+        "services": ["compute", "storage", "ai", "databases"],
+        "pricing": "usage_based",
+        "status": "active",
+        "use_cases": ["scalable_backend", "enterprise"]
+      }
+    },
+    "payments": {
+      "stripe": {
+        "name": "Stripe",
+        "type": "Payment Processing",
+        "endpoint": "https://api.stripe.com/v1",
+        "services": ["payments", "subscriptions", "connect"],
+        "pricing": "2.9% + $0.30",
+        "status": "active",
+        "regions": ["global"],
+        "use_cases": ["primary_payments", "subscriptions"]
+      },
+      "flutterwave": {
+        "name": "Flutterwave",
+        "type": "African Payments",
+        "endpoint": "https://api.flutterwave.com/v3",
+        "services": ["payments", "mobile_money", "cards"],
+        "pricing": "variable_by_region",
+        "status": "integration",
+        "regions": ["africa"],
+        "use_cases": ["african_markets", "mobile_money"]
+      },
+      "paystack": {
+        "name": "Paystack",
+        "type": "Payment Gateway",
+        "endpoint": "https://api.paystack.co",
+        "services": ["payments", "subscriptions"],
+        "pricing": "1.5% + ₦100",
+        "status": "integration",
+        "regions": ["nigeria", "ghana", "south_africa"],
+        "use_cases": ["african_markets"]
+      },
+      "paypal": {
+        "name": "PayPal",
+        "type": "Digital Payments",
+        "endpoint": "https://api.paypal.com",
+        "services": ["payments", "subscriptions", "marketplace"],
+        "pricing": "2.9% + fixed_fee",
+        "status": "integration",
+        "regions": ["global"],
+        "use_cases": ["international", "marketplace"]
+      }
+    },
+    "development": {
+      "eas": {
+        "name": "Expo Application Services",
+        "type": "Mobile Build Service",
+        "endpoint": "https://api.expo.dev",
+        "services": ["build", "submit", "update"],
+        "pricing": "tiered",
+        "status": "active",
+        "use_cases": ["mobile_apps", "react_native"]
+      },
+      "admob": {
+        "name": "Google AdMob",
+        "type": "Mobile Advertising",
+        "endpoint": "https://admob.googleapis.com",
+        "services": ["ads", "monetization"],
+        "pricing": "revenue_share",
+        "status": "integration",
+        "use_cases": ["app_monetization"]
+      }
+    },
+    "specialized": {
+      "browserbase": {
+        "name": "Browserbase",
+        "type": "Browser Automation",
+        "endpoint": "https://api.browserbase.com",
+        "services": ["web_scraping", "automation"],
+        "pricing": "usage_based",
+        "status": "active",
+        "use_cases": ["agent-banks", "web_automation"]
+      },
+      "sayswitch": {
+        "name": "Sayswitch",
+        "type": "Communication/Voice",
+        "endpoint": "custom",
+        "services": ["voice", "communication"],
+        "pricing": "custom",
+        "status": "integration",
+        "use_cases": ["voice_services"]
+      },
+      "tailor_brands": {
+        "name": "Tailor Brands",
+        "type": "Branding/Design",
+        "endpoint": "https://api.tailorbrands.com",
+        "services": ["logo_design", "branding"],
+        "pricing": "api_calls",
+        "status": "integration",
+        "use_cases": ["brand_automation", "design"]
+      }
+    }
+  },
+  "integration_standards": {
+    "authentication": {
+      "api_key": "Bearer token in headers",
+      "oauth": "OAuth 2.0 where supported",
+      "webhook_security": "HMAC signature verification"
+    },
+    "error_handling": {
+      "retry_strategy": "exponential_backoff",
+      "max_retries": 3,
+      "timeout": 30000,
+      "fallback_provider": "automatic"
+    },
+    "monitoring": {
+      "health_checks": "every_5_minutes",
+      "performance_metrics": "response_time, success_rate",
+      "cost_tracking": "real_time_usage_monitoring",
+      "alerts": "uptime < 99%, errors > 1%"
+    }
+  },
+  "cost_management": {
+    "budgets": {
+      "ai_services": 5000,
+      "infrastructure": 1500,
+      "payments": "percentage_based",
+      "specialized": 500
+    },
+    "optimization": {
+      "model_routing": "cost_and_performance_based",
+      "caching": "aggressive_for_static_responses",
+      "batch_processing": "where_applicable"
+    }
+  }
+}
