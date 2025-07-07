@@ -1,0 +1,147 @@
+{
+  "vendor_onboarding_template": {
+    "vendor_information": {
+      "vendor_name": "",
+      "business_category": "",
+      "contact_details": {
+        "primary_contact": "",
+        "email": "",
+        "phone": "",
+        "address": ""
+      },
+      "business_registration": {
+        "registration_number": "",
+        "tax_id": "",
+        "business_type": ""
+      }
+    },
+    "service_catalog": {
+      "primary_services": [],
+      "service_descriptions": {},
+      "pricing_model": "",
+      "availability": {
+        "hours": "",
+        "coverage_area": "",
+        "capacity": ""
+      }
+    },
+    "technical_integration": {
+      "api_requirements": {
+        "has_existing_api": false,
+        "api_documentation_url": "",
+        "authentication_method": "",
+        "rate_limits": ""
+      },
+      "integration_preferences": {
+        "webhook_url": "",
+        "callback_methods": [],
+        "data_format": "JSON",
+        "real_time_updates": false
+      }
+    },
+    "financial_setup": {
+      "commission_structure": {
+        "percentage": 0,
+        "fixed_fee": 0,
+        "volume_tiers": []
+      },
+      "payment_preferences": {
+        "settlement_frequency": "weekly",
+        "payment_method": "",
+        "bank_details": {},
+        "crypto_addresses": {}
+      },
+      "billing_information": {
+        "currency": "USD",
+        "tax_requirements": [],
+        "invoice_details": {}
+      }
+    },
+    "compliance_requirements": {
+      "certifications": [],
+      "licenses": [],
+      "insurance": {
+        "liability_coverage": "",
+        "professional_indemnity": ""
+      },
+      "data_protection": {
+        "gdpr_compliant": false,
+        "data_retention_policy": "",
+        "privacy_policy_url": ""
+      }
+    },
+    "integration_timeline": {
+      "onboarding_start": "",
+      "documentation_complete": "",
+      "technical_integration": "",
+      "testing_phase": "",
+      "go_live_date": ""
+    }
+  },
+  "vendor_examples": [
+    {
+      "vendor_name": "BIC James",
+      "business_category": "Business Services",
+      "primary_services": ["consulting", "business_development"],
+      "commission_percentage": 3.0,
+      "status": "onboarding"
+    },
+    {
+      "vendor_name": "Doyen Autos",
+      "business_category": "Automotive",
+      "primary_services": ["vehicle_maintenance", "parts_supply", "automotive_services"],
+      "commission_percentage": 2.5,
+      "status": "onboarding"
+    },
+    {
+      "vendor_name": "Apple Store Lekki",
+      "business_category": "Technology Retail",
+      "primary_services": ["apple_products", "accessories", "technical_support"],
+      "commission_percentage": 4.0,
+      "status": "onboarding"
+    },
+    {
+      "vendor_name": "Nexus Edge",
+      "business_category": "Technology Services",
+      "primary_services": ["edge_computing", "cloud_services", "tech_consulting"],
+      "commission_percentage": 3.5,
+      "status": "onboarding"
+    },
+    {
+      "vendor_name": "Grizzen Rev",
+      "business_category": "Financial Services",
+      "primary_services": ["revenue_optimization", "financial_consulting"],
+      "commission_percentage": 5.0,
+      "status": "onboarding"
+    },
+    {
+      "vendor_name": "FJ Health Tech",
+      "business_category": "Healthcare Technology",
+      "primary_services": ["medical_devices", "health_software", "telemedicine"],
+      "commission_percentage": 3.0,
+      "status": "onboarding"
+    },
+    {
+      "vendor_name": "Samir L Crypto",
+      "business_category": "Cryptocurrency",
+      "primary_services": ["p2p_trading", "crypto_consulting", "blockchain_services"],
+      "commission_percentage": 2.0,
+      "status": "onboarding",
+      "special_notes": "P2P trading platform"
+    },
+    {
+      "vendor_name": "Chy Luxe",
+      "business_category": "Luxury Goods",
+      "primary_services": ["luxury_products", "premium_services", "concierge"],
+      "commission_percentage": 4.0,
+      "status": "onboarding"
+    }
+  ],
+  "integration_endpoints": {
+    "vendor_registration": "/api/v1/vendors/register",
+    "service_catalog": "/api/v1/vendors/{vendor_id}/services",
+    "order_webhook": "/api/v1/vendors/{vendor_id}/orders",
+    "payment_settlement": "/api/v1/vendors/{vendor_id}/payments",
+    "analytics_dashboard": "/api/v1/vendors/{vendor_id}/analytics"
+  }
+}
