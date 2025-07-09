@@ -56,7 +56,7 @@ class MultiAIProvider:
                 name="Anthropic Claude",
                 api_key=anthropic_key,
                 base_url="https://api.anthropic.com/v1/messages",
-                model="claude-3-sonnet-20240229",
+                model="claude-3-5-sonnet-20241022",
                 max_tokens=4000,
                 available=True
             )
@@ -73,7 +73,7 @@ class MultiAIProvider:
                 name="OpenRouter",
                 api_key=openrouter_key,
                 base_url="https://openrouter.ai/api/v1/chat/completions",
-                model="anthropic/claude-3-sonnet",  # Claude via OpenRouter
+                model="anthropic/claude-3.5-sonnet",  # Claude via OpenRouter
                 max_tokens=4000,
                 available=True
             )
