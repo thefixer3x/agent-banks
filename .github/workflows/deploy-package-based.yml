@@ -62,20 +62,55 @@ jobs:
         echo "📦 Creating deployment package..."
         mkdir -p ${PACKAGE_DIR}
         
-        # Copy all Ghost Protocol files
+        # First, let's see what files we actually have
+        echo "📁 Available files in repository:"
+        ls -la *.js || echo "No JS files in root"
+        
+        # Copy all Ghost Protocol files (with error handling)
         echo "📁 Copying Ghost Protocol files..."
-        cp enhanced-memory-server.js ${PACKAGE_DIR}/
-        cp simple-server.js ${PACKAGE_DIR}/
+        
+        # Copy core server files if they exist
+        if [ -f "enhanced-memory-server.js" ]; then
+          cp enhanced-memory-server.js ${PACKAGE_DIR}/
+          echo "✅ Copied enhanced-memory-server.js"
+        else
+          echo "⚠️  enhanced-memory-server.js not found"
+        fi
+        
+        if [ -f "simple-server.js" ]; then
+          cp simple-server.js ${PACKAGE_DIR}/
+          echo "✅ Copied simple-server.js"
+        else
+          echo "⚠️  simple-server.js not found"
+        fi
+        
+        if [ -f "api-gateway-server.js" ]; then
+          cp api-gateway-server.js ${PACKAGE_DIR}/
+          echo "✅ Copied api-gateway-server.js"
+        else
+          echo "⚠️  api-gateway-server.js not found"
+        fi
+        
+        # Copy package files
         cp package.json ${PACKAGE_DIR}/
         cp package-lock.json ${PACKAGE_DIR}/
-        cp smart-memory-mcp-client.js ${PACKAGE_DIR}/
-        cp store-memory-cli.js ${PACKAGE_DIR}/
-        cp api-gateway-server.js ${PACKAGE_DIR}/
+        
+        # Copy utility files if they exist
+        if [ -f "smart-memory-mcp-client.js" ]; then
+          cp smart-memory-mcp-client.js ${PACKAGE_DIR}/
+          echo "✅ Copied smart-memory-mcp-client.js"
+        fi
+        
+        if [ -f "store-memory-cli.js" ]; then
+          cp store-memory-cli.js ${PACKAGE_DIR}/
+          echo "✅ Copied store-memory-cli.js"
+        fi
         
         # Copy test files
         for testfile in test-*.js; do
           if [ -f "$testfile" ]; then
             cp "$testfile" ${PACKAGE_DIR}/
+            echo "✅ Copied $testfile"
           fi
         done
         
