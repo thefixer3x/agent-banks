@@ -38,6 +38,8 @@ claude_realm_env/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.vps
+*.env
 
 # IDE
 .vscode/
