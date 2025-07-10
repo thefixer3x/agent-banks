@@ -16,7 +16,7 @@ jobs:
     name: Deploy to Hostinger VPS
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production
+    # environment: production
     
     # Prevent concurrent deployments
     concurrency:

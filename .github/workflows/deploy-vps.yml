@@ -27,7 +27,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    environment: ${{ github.event.inputs.deploy_environment || 'production' }}
+    # environment: ${{ github.event.inputs.deploy_environment || 'production' }}
     
     # Prevent concurrent deployments
     concurrency:

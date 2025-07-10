@@ -39,9 +39,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment:
-      name: production
-      url: https://${{ env.CONNECTION_DOMAIN }}
+    # environment:
+    #   name: production
+    #   url: https://${{ env.CONNECTION_DOMAIN }}
     
     # Prevent concurrent deployments
     concurrency:
