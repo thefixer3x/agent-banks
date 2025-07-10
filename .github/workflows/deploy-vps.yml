@@ -17,7 +17,8 @@ on:
 env:
   # Secure deployment configuration
   VPS_HOST: ${{ secrets.VPS_HOST }}
-  VPS_USER: ${{ secrets.VPS_USER || 'deploy' }}
+  VPS_USER: ${{ secrets.VPS_USER || 'root' }}
+  VPS_PORT: ${{ secrets.SSH_PORT || '22' }}
   DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/sd-ghost-protocol' }}
   SERVICE_NAME: ${{ secrets.SERVICE_NAME || 'ghost-protocol' }}
   MEMORY_API_KEY: ${{ secrets.MEMORY_API_KEY }}
@@ -66,14 +67,14 @@ jobs:
         
     - name: Verify Secure SSH Connection
       run: |
-        if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} 'echo "✅ SSH connection successful"'; then
+        if ! ssh -p ${{ env.VPS_PORT }} -o ConnectTimeout=10 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} 'echo "✅ SSH connection successful"'; then
           echo "❌ SSH connection failed"
           exit 1
         fi
         
     - name: Deploy Application
       run: |
-        ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        ssh -p ${{ env.VPS_PORT }} -o ConnectTimeout=30 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
           set -e
           
           # Navigate to deployment directory

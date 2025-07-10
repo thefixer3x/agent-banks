@@ -28,7 +28,8 @@ on:
 env:
   # Secure deployment configuration - all sensitive data in secrets
   VPS_HOST: ${{ secrets.VPS_HOST }}
-  VPS_USER: ${{ secrets.VPS_USER || 'deploy' }}
+  VPS_USER: ${{ secrets.VPS_USER || 'root' }}
+  VPS_PORT: ${{ secrets.SSH_PORT || '22' }}
   DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/sd-ghost-protocol' }}
   CONNECTION_DOMAIN: ${{ github.event.inputs.connection_point || 'apiendpoint.net' }}
   SERVICE_PORT: ${{ secrets.SERVICE_PORT || '3000' }}
@@ -86,14 +87,14 @@ jobs:
       run: |
         echo "🔗 Deploying to Connection Point: ${{ env.CONNECTION_DOMAIN }}"
         echo "🖥️  Target VPS: ${{ env.VPS_HOST }}"
-        if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} 'echo "✅ SSH connection successful"'; then
+        if ! ssh -p ${{ env.VPS_PORT }} -o ConnectTimeout=10 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} 'echo "✅ SSH connection successful"'; then
           echo "❌ SSH connection failed"
           exit 1
         fi
         
     - name: Deploy Services
       run: |
-        ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        ssh -p ${{ env.VPS_PORT }} -o ConnectTimeout=30 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
           set -e
           
           echo '🚀 Starting Ghost Protocol deployment...'
