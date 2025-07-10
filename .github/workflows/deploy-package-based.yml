@@ -1,0 +1,327 @@
+name: Deploy Ghost Protocol (Package-Based)
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_method:
+        description: 'Deployment method'
+        required: true
+        default: 'package'
+        type: choice
+        options:
+        - package
+        - direct_ssh
+
+env:
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USER: ${{ secrets.VPS_USER || 'root' }}
+  VPS_PORT: ${{ secrets.SSH_PORT || '22' }}
+  MEMORY_API_KEY: ${{ secrets.MEMORY_API_KEY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    # Prevent concurrent deployments
+    concurrency:
+      group: ghost-protocol-package-deploy
+      cancel-in-progress: false
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Validate Required Secrets
+      run: |
+        if [ -z "${{ secrets.VPS_HOST }}" ]; then
+          echo "❌ VPS_HOST secret is required"
+          exit 1
+        fi
+        if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          echo "❌ SSH_PRIVATE_KEY secret is required"
+          exit 1
+        fi
+        echo "✅ Required secrets validated"
+
+    - name: Create Ghost Protocol Deployment Package
+      run: |
+        echo "🚀 Creating Ghost Protocol deployment package..."
+        
+        # Configuration
+        PACKAGE_NAME="ghost-protocol-deployment-$(date +%Y%m%d_%H%M%S)"
+        PACKAGE_DIR="/tmp/${PACKAGE_NAME}"
+        
+        # Create deployment package
+        echo "📦 Creating deployment package..."
+        mkdir -p ${PACKAGE_DIR}
+        
+        # Copy all Ghost Protocol files
+        echo "📁 Copying Ghost Protocol files..."
+        cp enhanced-memory-server.js ${PACKAGE_DIR}/
+        cp simple-server.js ${PACKAGE_DIR}/
+        cp package.json ${PACKAGE_DIR}/
+        cp package-lock.json ${PACKAGE_DIR}/
+        cp test-*.js ${PACKAGE_DIR}/
+        cp smart-memory-mcp-client.js ${PACKAGE_DIR}/
+        cp store-memory-cli.js ${PACKAGE_DIR}/
+        
+        # Create VPS-specific configuration
+        echo "⚙️  Creating VPS configuration..."
+        cat > ${PACKAGE_DIR}/vps_config.env << 'EOF'
+        # Ghost Protocol VPS Configuration
+        export NODE_ENV=production
+        export HOST=0.0.0.0
+        export PORT=3000
+        export CHAT_PORT=5000
+        
+        # Memory API Configuration
+        export MEMORY_API_KEY=${{ env.MEMORY_API_KEY }}
+        
+        # Logging
+        export LOG_LEVEL=info
+        export DEBUG=false
+        
+        # Database
+        export DATABASE_PATH="/root/ghost-protocol/storage/database.db"
+        EOF
+        
+        # Create installation script
+        echo "📝 Creating installation script..."
+        cat > ${PACKAGE_DIR}/install_ghost_protocol.sh << 'INSTALL_EOF'
+        #!/bin/bash
+        
+        # Ghost Protocol VPS Installation Script
+        echo "🚀 Installing Ghost Protocol on VPS..."
+        
+        # Setup directories
+        INSTALL_DIR="/root/ghost-protocol"
+        mkdir -p ${INSTALL_DIR}
+        mkdir -p ${INSTALL_DIR}/logs
+        mkdir -p ${INSTALL_DIR}/storage
+        
+        # Copy files to installation directory
+        echo "📁 Setting up directory structure..."
+        cp * ${INSTALL_DIR}/ 2>/dev/null || true
+        
+        # Install Node.js dependencies
+        cd ${INSTALL_DIR}
+        echo "📦 Installing Node.js dependencies..."
+        npm install --production
+        
+        # Set permissions
+        chmod +x *.js
+        chmod +x *.sh
+        
+        # Stop existing services
+        echo "⏹️  Stopping existing services..."
+        pkill -f 'enhanced-memory-server.js' || true
+        pkill -f 'simple-server.js' || true
+        sleep 3
+        
+        # Create systemd service for memory server
+        echo "🔧 Creating systemd service..."
+        cat > /etc/systemd/system/ghost-protocol-memory.service << 'SYSTEMD_EOF'
+        [Unit]
+        Description=Ghost Protocol Memory Server
+        After=network.target
+        
+        [Service]
+        Type=simple
+        User=root
+        WorkingDirectory=/root/ghost-protocol
+        EnvironmentFile=/root/ghost-protocol/vps_config.env
+        ExecStart=/usr/bin/node enhanced-memory-server.js
+        Restart=always
+        RestartSec=5
+        StandardOutput=journal
+        StandardError=journal
+        
+        [Install]
+        WantedBy=multi-user.target
+        SYSTEMD_EOF
+        
+        # Create systemd service for chat server
+        cat > /etc/systemd/system/ghost-protocol-chat.service << 'SYSTEMD_EOF'
+        [Unit]
+        Description=Ghost Protocol Chat Server
+        After=network.target
+        
+        [Service]
+        Type=simple
+        User=root
+        WorkingDirectory=/root/ghost-protocol
+        EnvironmentFile=/root/ghost-protocol/vps_config.env
+        ExecStart=/usr/bin/node simple-server.js
+        Restart=always
+        RestartSec=5
+        StandardOutput=journal
+        StandardError=journal
+        
+        [Install]
+        WantedBy=multi-user.target
+        SYSTEMD_EOF
+        
+        # Enable services
+        systemctl daemon-reload
+        systemctl enable ghost-protocol-memory
+        systemctl enable ghost-protocol-chat
+        
+        # Start services
+        echo "🚀 Starting Ghost Protocol services..."
+        systemctl start ghost-protocol-memory
+        sleep 3
+        systemctl start ghost-protocol-chat
+        sleep 3
+        
+        # Check service status
+        echo "📊 Checking service status..."
+        if systemctl is-active --quiet ghost-protocol-memory; then
+            echo "✅ Memory server started successfully"
+        else
+            echo "❌ Memory server failed to start"
+            journalctl -u ghost-protocol-memory --no-pager -n 10
+        fi
+        
+        if systemctl is-active --quiet ghost-protocol-chat; then
+            echo "✅ Chat server started successfully"
+        else
+            echo "❌ Chat server failed to start"
+            journalctl -u ghost-protocol-chat --no-pager -n 10
+        fi
+        
+        # Health check
+        echo "🏥 Performing health checks..."
+        sleep 5
+        
+        if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+            echo "✅ Memory server health check passed"
+        else
+            echo "⚠️  Memory server health check failed"
+        fi
+        
+        if curl -f http://localhost:5000/status > /dev/null 2>&1; then
+            echo "✅ Chat server health check passed"
+        else
+            echo "⚠️  Chat server health check failed"
+        fi
+        
+        echo ""
+        echo "✅ Ghost Protocol installation completed!"
+        echo ""
+        echo "📋 Service Information:"
+        echo "   Memory Server: http://localhost:3000"
+        echo "   Chat Server: http://localhost:5000"
+        echo ""
+        echo "🔧 Configuration: /root/ghost-protocol/vps_config.env"
+        echo "📊 Logs: journalctl -u ghost-protocol-memory -f"
+        echo "📊 Logs: journalctl -u ghost-protocol-chat -f"
+        echo ""
+        echo "🎯 External Access:"
+        echo "   Memory API: http://${{ env.VPS_HOST }}:3000"
+        echo "   Chat API: http://${{ env.VPS_HOST }}:5000"
+        INSTALL_EOF
+        
+        # Make installation script executable
+        chmod +x ${PACKAGE_DIR}/install_ghost_protocol.sh
+        
+        # Create deployment archive
+        echo "📦 Creating deployment archive..."
+        cd /tmp
+        tar -czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}/
+        
+        echo "✅ Deployment package created: /tmp/${PACKAGE_NAME}.tar.gz"
+        echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+        echo "PACKAGE_PATH=/tmp/${PACKAGE_NAME}.tar.gz" >> $GITHUB_ENV
+
+    - name: Configure SSH Security
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        echo "${{ secrets.KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+        
+    - name: Deploy Package to VPS
+      run: |
+        echo "🚀 Deploying package to VPS..."
+        
+        # Upload package to VPS
+        echo "📤 Uploading deployment package..."
+        scp -P ${{ env.VPS_PORT }} -o StrictHostKeyChecking=yes ${PACKAGE_PATH} ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:~/
+        
+        # Extract and install on VPS
+        echo "📦 Extracting and installing on VPS..."
+        ssh -p ${{ env.VPS_PORT }} -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+          cd ~
+          tar -xzf ${PACKAGE_NAME}.tar.gz
+          cd ${PACKAGE_NAME}
+          sudo bash install_ghost_protocol.sh
+          rm -f ~/${PACKAGE_NAME}.tar.gz
+          echo '✅ Ghost Protocol deployed successfully!'
+        "
+        
+    - name: Verify Deployment
+      run: |
+        echo "🔍 Verifying deployment..."
+        
+        # Wait for services to fully start
+        sleep 10
+        
+        # Test VPS services
+        echo "🧪 Testing VPS services..."
+        
+        # Test memory server
+        if curl -f http://${{ env.VPS_HOST }}:3000/health; then
+          echo "✅ Memory server is accessible"
+        else
+          echo "⚠️  Memory server may not be accessible externally"
+        fi
+        
+        # Test chat server
+        if curl -f http://${{ env.VPS_HOST }}:5000/status; then
+          echo "✅ Chat server is accessible"
+        else
+          echo "⚠️  Chat server may not be accessible externally"
+        fi
+        
+        echo "🎉 Deployment verification completed!"
+
+    - name: Upload Deployment Logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ghost-protocol-deployment-logs
+        path: /tmp/${{ env.PACKAGE_NAME }}/
+        retention-days: 7
+
+    - name: Deployment Summary
+      if: always()
+      run: |
+        echo "## 🚀 Ghost Protocol Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ **Status**: Deployment SUCCESSFUL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🌐 Access Points" >> $GITHUB_STEP_SUMMARY
+          echo "- **Memory Server**: http://${{ env.VPS_HOST }}:3000" >> $GITHUB_STEP_SUMMARY
+          echo "- **Chat Server**: http://${{ env.VPS_HOST }}:5000" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health Check**: http://${{ env.VPS_HOST }}:3000/health" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔧 Management Commands" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: \`systemctl status ghost-protocol-memory ghost-protocol-chat\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Logs**: \`journalctl -u ghost-protocol-memory -f\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Restart**: \`systemctl restart ghost-protocol-memory ghost-protocol-chat\`" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Status**: Deployment FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+        fi
