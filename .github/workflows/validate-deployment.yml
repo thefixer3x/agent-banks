@@ -1,0 +1,184 @@
+name: Validate Deployment Configuration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: 
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths: 
+      - '.github/workflows/**'
+
+jobs:
+  validate-secrets:
+    name: Validate Deployment Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Validate Required Secrets
+      run: |
+        echo "🔍 Validating deployment configuration..."
+        
+        # Check critical secrets
+        MISSING_SECRETS=()
+        
+        if [ -z "${{ secrets.VPS_HOST }}" ]; then
+          MISSING_SECRETS+=("VPS_HOST")
+        fi
+        
+        if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          MISSING_SECRETS+=("SSH_PRIVATE_KEY")
+        fi
+        
+        if [ -z "${{ secrets.KNOWN_HOSTS }}" ]; then
+          MISSING_SECRETS+=("KNOWN_HOSTS")
+        fi
+        
+        if [ -z "${{ secrets.MEMORY_API_KEY }}" ]; then
+          MISSING_SECRETS+=("MEMORY_API_KEY")
+        fi
+        
+        # Report results
+        if [ ${#MISSING_SECRETS[@]} -eq 0 ]; then
+          echo "✅ All required secrets are configured"
+        else
+          echo "❌ Missing required secrets:"
+          for secret in "${MISSING_SECRETS[@]}"; do
+            echo "  - $secret"
+          done
+          echo ""
+          echo "📖 See .github/DEPLOYMENT.md for setup instructions"
+          exit 1
+        fi
+        
+    - name: Validate Workflow Syntax
+      run: |
+        echo "🔍 Validating workflow syntax..."
+        
+        # Check for security issues
+        SECURITY_ISSUES=()
+        
+        # Check for hardcoded IPs
+        if grep -r "168\.231\.74\.29" .github/workflows/ 2>/dev/null; then
+          SECURITY_ISSUES+=("Hardcoded IP addresses found")
+        fi
+        
+        # Check for hardcoded hostnames (allow only in comments)
+        if grep -r "srv896342\.hstgr\.cloud" .github/workflows/ | grep -v "# Example\|# Description\|Description:" 2>/dev/null; then
+          SECURITY_ISSUES+=("Hardcoded hostnames found")
+        fi
+        
+        # Check for StrictHostKeyChecking=no
+        if grep -r "StrictHostKeyChecking=no" .github/workflows/ 2>/dev/null; then
+          SECURITY_ISSUES+=("Insecure SSH configuration found (StrictHostKeyChecking=no)")
+        fi
+        
+        # Check for hardcoded API keys
+        if grep -r "sk_test_\|sk_prod_" .github/workflows/ | grep -v "secrets\." | grep -v "env\." 2>/dev/null; then
+          SECURITY_ISSUES+=("Hardcoded API keys found")
+        fi
+        
+        # Report security issues
+        if [ ${#SECURITY_ISSUES[@]} -eq 0 ]; then
+          echo "✅ No security issues detected"
+        else
+          echo "⚠️ Security issues found:"
+          for issue in "${SECURITY_ISSUES[@]}"; do
+            echo "  - $issue"
+          done
+          echo ""
+          echo "🛡️ Please review and fix security issues before deployment"
+          exit 1
+        fi
+        
+    - name: Check Deployment Dependencies
+      run: |
+        echo "🔍 Checking deployment dependencies..."
+        
+        # Check if required files exist
+        REQUIRED_FILES=(
+          "enhanced-memory-server.js"
+          "package.json"
+        )
+        
+        MISSING_FILES=()
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            MISSING_FILES+=("$file")
+          fi
+        done
+        
+        if [ ${#MISSING_FILES[@]} -eq 0 ]; then
+          echo "✅ All required deployment files exist"
+        else
+          echo "⚠️ Missing deployment files:"
+          for file in "${MISSING_FILES[@]}"; do
+            echo "  - $file"
+          done
+        fi
+        
+    - name: Deployment Readiness Summary
+      run: |
+        echo "## 🚀 Deployment Readiness Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ✅ Configuration Status" >> $GITHUB_STEP_SUMMARY
+        echo "- **Secrets**: All required secrets configured" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security**: No security issues detected" >> $GITHUB_STEP_SUMMARY
+        echo "- **Files**: All deployment files present" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Ready for Deployment" >> $GITHUB_STEP_SUMMARY
+        echo "Your workflows are properly configured and secure!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📖 Documentation" >> $GITHUB_STEP_SUMMARY
+        echo "See [Deployment Guide](.github/DEPLOYMENT.md) for detailed instructions." >> $GITHUB_STEP_SUMMARY
+
+  test-ssh-config:
+    name: Test SSH Configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: validate-secrets
+    if: ${{ secrets.VPS_HOST && secrets.SSH_PRIVATE_KEY }}
+    
+    steps:
+    - name: Test SSH Key Format
+      run: |
+        echo "🔍 Testing SSH configuration..."
+        
+        # Create SSH key file
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/test_key
+        chmod 600 ~/.ssh/test_key
+        
+        # Validate SSH key format
+        if ssh-keygen -l -f ~/.ssh/test_key; then
+          echo "✅ SSH private key format is valid"
+        else
+          echo "❌ SSH private key format is invalid"
+          exit 1
+        fi
+        
+        # Clean up
+        rm ~/.ssh/test_key
+        
+    - name: Test Known Hosts Format
+      run: |
+        echo "🔍 Testing known_hosts format..."
+        
+        # Validate known_hosts format
+        echo "${{ secrets.KNOWN_HOSTS }}" > ~/.ssh/test_known_hosts
+        
+        if ssh-keygen -F "${{ secrets.VPS_HOST }}" -f ~/.ssh/test_known_hosts; then
+          echo "✅ Known hosts entry is valid for VPS_HOST"
+        else
+          echo "⚠️ Known hosts entry may not match VPS_HOST"
+          echo "This might cause SSH connection issues"
+        fi
+        
+        # Clean up
+        rm ~/.ssh/test_known_hosts

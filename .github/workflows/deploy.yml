@@ -1,0 +1,243 @@
+name: Deploy Ghost Protocol to Connection Point
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      deployment_type:
+        description: 'Deployment type'
+        required: true
+        default: 'enhanced-memory'
+        type: choice
+        options:
+        - enhanced-memory
+        - api-gateway
+        - full-stack
+        - hotfix
+      connection_point:
+        description: 'Connection point domain'
+        required: true
+        default: 'apiendpoint.net'
+        type: choice
+        options:
+        - apiendpoint.net
+        - connectionpoint.io
+        - notifyhook.com
+
+env:
+  # Secure deployment configuration - all sensitive data in secrets
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USER: ${{ secrets.VPS_USER || 'deploy' }}
+  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/sd-ghost-protocol' }}
+  CONNECTION_DOMAIN: ${{ github.event.inputs.connection_point || 'apiendpoint.net' }}
+  SERVICE_PORT: ${{ secrets.SERVICE_PORT || '3000' }}
+  MEMORY_API_KEY: ${{ secrets.MEMORY_API_KEY }}
+  
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://${{ env.CONNECTION_DOMAIN }}
+    
+    # Prevent concurrent deployments
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Validate Required Secrets
+      run: |
+        if [ -z "${{ secrets.VPS_HOST }}" ]; then
+          echo "❌ VPS_HOST secret is required"
+          exit 1
+        fi
+        if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          echo "❌ SSH_PRIVATE_KEY secret is required"
+          exit 1
+        fi
+        if [ -z "${{ secrets.KNOWN_HOSTS }}" ]; then
+          echo "❌ KNOWN_HOSTS secret is required"
+          exit 1
+        fi
+        echo "✅ All required secrets are configured"
+
+    - name: Configure SSH Security
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        echo "${{ secrets.KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+        
+    - name: Verify Secure Connection
+      run: |
+        echo "🔗 Deploying to Connection Point: ${{ env.CONNECTION_DOMAIN }}"
+        echo "🖥️  Target VPS: ${{ env.VPS_HOST }}"
+        if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} 'echo "✅ SSH connection successful"'; then
+          echo "❌ SSH connection failed"
+          exit 1
+        fi
+        
+    - name: Deploy Services
+      run: |
+        ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+          set -e
+          
+          echo '🚀 Starting Ghost Protocol deployment...'
+          
+          # Navigate to deployment directory
+          cd ${{ env.DEPLOY_PATH }}
+          
+          # Create backup of current deployment
+          timestamp=\$(date +%Y%m%d_%H%M%S)
+          if [ -f enhanced-memory-server.js ]; then
+            cp enhanced-memory-server.js enhanced-memory-server.js.backup.\$timestamp
+            echo '💾 Created backup: enhanced-memory-server.js.backup.\$timestamp'
+          fi
+          
+          # Pull latest changes with force
+          echo '📥 Pulling latest changes from repository...'
+          git fetch --all
+          git reset --hard origin/main
+          git clean -fd
+          
+          # Install/update dependencies
+          echo '📦 Installing dependencies...'
+          npm install --production --no-audit
+          
+          # Ensure environment configuration
+          if [ ! -f .env.production ]; then
+            if [ -f .env.production.example ]; then
+              cp .env.production.example .env.production
+              echo '⚙️  Created .env.production from example'
+            else
+              echo '❌ No environment configuration found'
+              exit 1
+            fi
+          fi
+          
+          # Update connection point configuration
+          echo 'CONNECTION_DOMAIN=${{ env.CONNECTION_DOMAIN }}' >> .env.production
+          echo 'SERVICE_PORT=${{ env.SERVICE_PORT }}' >> .env.production
+          
+          # Ensure critical environment variables
+          if ! grep -q 'MEMORY_API_KEY' .env.production; then
+            echo 'MEMORY_API_KEY=${{ env.MEMORY_API_KEY }}' >> .env.production
+            echo '🔑 Added MEMORY_API_KEY to environment'
+          fi
+          
+          # Stop existing services gracefully
+          echo '⏹️  Stopping existing services...'
+          pkill -f 'enhanced-memory-server.js' || echo 'No enhanced server running'
+          pkill -f 'simple-server.js' || echo 'No simple server running'
+          sleep 5
+          
+          # Force kill any remaining node processes
+          if pgrep -f 'node.*server\.js' > /dev/null; then
+            echo '🔄 Force stopping remaining processes...'
+            pkill -9 -f 'node.*server\.js' || true
+            sleep 3
+          fi
+          
+          # Start services based on deployment type
+          if [ \"${{ github.event.inputs.deployment_type || 'enhanced-memory' }}\" == \"api-gateway\" ]; then
+            echo '🔒 Starting Privacy Gateway deployment...'
+            ./deployment/deploy-api-gateway.sh
+          else
+            echo '🌟 Starting Enhanced Memory Server...'
+            nohup node enhanced-memory-server.js > /var/log/ghost-protocol.log 2>&1 &
+          fi
+          
+          # Wait for service to initialize
+          sleep 8
+          
+          # Verify service is running
+          if pgrep -f 'enhanced-memory-server.js' > /dev/null; then
+            pid=\$(pgrep -f 'enhanced-memory-server.js')
+            echo \"✅ Enhanced Memory Server started successfully (PID: \$pid)\"
+          else
+            echo '❌ Failed to start Enhanced Memory Server'
+            echo '📋 Last 10 lines of log:'
+            tail -10 /var/log/ghost-protocol.log || echo 'No log file found'
+            exit 1
+          fi
+          
+          # Health check with retries
+          echo '🏥 Performing health checks...'
+          max_attempts=15
+          attempt=1
+          while [ \$attempt -le \$max_attempts ]; do
+            if curl -f http://localhost:${{ env.SERVICE_PORT }}/health > /dev/null 2>&1; then
+              echo \"✅ Health check passed on attempt \$attempt\"
+              break
+            fi
+            echo \"⏳ Health check attempt \$attempt/\$max_attempts failed, retrying...\"
+            sleep 2
+            attempt=\$((attempt + 1))
+          done
+          
+          if [ \$attempt -gt \$max_attempts ]; then
+            echo '❌ Health check failed after \$max_attempts attempts'
+            echo '📋 Service logs:'
+            tail -20 /var/log/ghost-protocol.log || echo 'No log file found'
+            exit 1
+          fi
+          
+          # Test API endpoints
+          echo '🧪 Testing API endpoints...'
+          
+          # Test health endpoint
+          health_response=\$(curl -s http://localhost:${{ env.SERVICE_PORT }}/health)
+          if echo \"\$health_response\" | grep -q '\"status\":\"ok\"'; then
+            echo '✅ Health endpoint responding correctly'
+          else
+            echo \"⚠️  Health endpoint response: \$health_response\"
+          fi
+          
+          # Test memory API structure (expect auth error)
+          memory_response=\$(curl -s -X POST http://localhost:${{ env.SERVICE_PORT }}/api/memories -H 'Content-Type: application/json' -d '{\"content\":\"test\"}')
+          if echo \"\$memory_response\" | grep -q '\"success\":false'; then
+            echo '✅ Memory API endpoint responding (authentication required as expected)'
+          else
+            echo \"⚠️  Memory API response: \$memory_response\"
+          fi
+          
+          echo '🎉 Deployment completed successfully!'
+          echo \"📍 Service running on: http://localhost:${{ env.SERVICE_PORT }}\"
+          echo \"🔗 Connection Point: ${{ env.CONNECTION_DOMAIN }}\"
+          echo \"🏥 Health Check: http://localhost:${{ env.SERVICE_PORT }}/health\"
+        "
+        
+    - name: Update Connection Point Configuration
+      if: success()
+      run: |
+        echo "🔗 Connection Point deployed successfully!"
+        echo "📍 Primary endpoint: https://ghost-protocol.${{ env.CONNECTION_DOMAIN }}"
+        echo "💾 Memory API: https://memory.${{ env.CONNECTION_DOMAIN }}/api/memories"
+        echo "🏥 Health check: https://ghost-protocol.${{ env.CONNECTION_DOMAIN }}/health"
+        
+    - name: Deployment Summary
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Ghost Protocol successfully deployed to Connection Point!"
+          echo "🌐 Domain: ${{ env.CONNECTION_DOMAIN }}"
+          echo "🖥️  VPS: ${{ env.VPS_HOST }}"
+          echo "⚡ Enhanced Memory Server: Active"
+        else
+          echo "❌ Deployment failed!"
+          echo "📧 Check logs and retry deployment"
+        fi

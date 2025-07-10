@@ -15,13 +15,20 @@ jobs:
   deploy:
     name: Deploy to Hostinger VPS
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    
+    # Prevent concurrent deployments
+    concurrency:
+      group: agent-banks-deploy
+      cancel-in-progress: false
     
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         
@@ -90,29 +97,49 @@ jobs:
         
         chmod +x /tmp/vps-deployment/auto_install.sh
         
+    - name: Validate Secrets
+      run: |
+        if [ -z "${{ secrets.VPS_HOST }}" ]; then
+          echo "❌ VPS_HOST secret is required"
+          exit 1
+        fi
+        echo "✅ Required secrets validated"
+        
     - name: Deploy via Multiple Methods
       env:
-        VPS_HOST: srv896342.hstgr.cloud
-        VPS_IP: 168.231.74.29
+        VPS_HOST: ${{ secrets.VPS_HOST }}
+        VPS_IP: ${{ secrets.VPS_IP }}
       run: |
         echo "🚀 Attempting deployment via multiple methods..."
         
         # Method 1: Try SSH with different keys/ports
         echo "📡 Method 1: SSH deployment..."
         
-        # Try different SSH configurations
-        for port in 22 2222 22222; do
-          echo "Trying SSH on port $port..."
-          if timeout 10 ssh -p $port -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@${VPS_HOST} 'echo "SSH Success on port $port"'; then
-            echo "✅ SSH working on port $port"
-            
-            # Upload and install
-            scp -P $port -r /tmp/vps-deployment root@${VPS_HOST}:/tmp/
-            ssh -p $port root@${VPS_HOST} 'cd /tmp/vps-deployment && bash auto_install.sh'
-            echo "✅ Deployment complete via SSH"
-            exit 0
-          fi
-        done
+        # Configure SSH if keys are available
+        if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          # Try SSH deployment with proper security
+          for port in 22 2222; do
+            echo "Trying SSH on port $port..."
+            if timeout 10 ssh -p $port -o ConnectTimeout=5 -o StrictHostKeyChecking=yes ${{ secrets.VPS_USER || 'deploy' }}@${VPS_HOST} 'echo "SSH Success on port $port"'; then
+              echo "✅ SSH working on port $port"
+              
+              # Upload and install
+              scp -P $port -r /tmp/vps-deployment ${{ secrets.VPS_USER || 'deploy' }}@${VPS_HOST}:/tmp/
+              ssh -p $port ${{ secrets.VPS_USER || 'deploy' }}@${VPS_HOST} 'cd /tmp/vps-deployment && bash auto_install.sh'
+              echo "✅ Deployment complete via SSH"
+              exit 0
+            fi
+          done
+        else
+          echo "⚠️ No SSH keys configured, skipping SSH deployment"
+        fi
         
         echo "⚠️  SSH deployment failed, trying alternatives..."
         
@@ -131,7 +158,7 @@ jobs:
         echo "6. Start: systemctl start agent-banks"
         
     - name: Upload Deployment Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: agent-banks-vps-deployment
         path: /tmp/vps-deployment/

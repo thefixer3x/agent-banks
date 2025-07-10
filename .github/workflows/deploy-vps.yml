@@ -1,0 +1,146 @@
+name: Deploy Ghost Protocol to VPS
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+
+env:
+  # Secure deployment configuration
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USER: ${{ secrets.VPS_USER || 'deploy' }}
+  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/sd-ghost-protocol' }}
+  SERVICE_NAME: ${{ secrets.SERVICE_NAME || 'ghost-protocol' }}
+  MEMORY_API_KEY: ${{ secrets.MEMORY_API_KEY }}
+  
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: ${{ github.event.inputs.deploy_environment || 'production' }}
+    
+    # Prevent concurrent deployments
+    concurrency:
+      group: deploy-${{ github.event.inputs.deploy_environment || 'production' }}
+      cancel-in-progress: false
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Validate Required Secrets
+      run: |
+        if [ -z "${{ secrets.VPS_HOST }}" ]; then
+          echo "❌ VPS_HOST secret is required"
+          exit 1
+        fi
+        if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          echo "❌ SSH_PRIVATE_KEY secret is required"
+          exit 1
+        fi
+        echo "✅ Required secrets validated"
+
+    - name: Configure SSH Security
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        echo "${{ secrets.KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+        
+    - name: Verify Secure SSH Connection
+      run: |
+        if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} 'echo "✅ SSH connection successful"'; then
+          echo "❌ SSH connection failed"
+          exit 1
+        fi
+        
+    - name: Deploy Application
+      run: |
+        ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=yes ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+          set -e
+          
+          # Navigate to deployment directory
+          cd ${{ env.DEPLOY_PATH }}
+          
+          # Backup current deployment
+          if [ -f enhanced-memory-server.js ]; then
+            cp enhanced-memory-server.js enhanced-memory-server.js.backup.$(date +%Y%m%d_%H%M%S)
+          fi
+          
+          # Pull latest changes
+          echo 'Pulling latest changes...'
+          git fetch --all
+          git reset --hard origin/main
+          
+          # Install dependencies
+          echo 'Installing dependencies...'
+          npm install --production
+          
+          # Update environment configuration
+          if [ ! -f .env.production ]; then
+            cp .env.production.example .env.production
+            echo 'Created .env.production from example'
+          fi
+          
+          # Ensure MEMORY_API_KEY exists
+          if ! grep -q 'MEMORY_API_KEY' .env.production; then
+            echo 'MEMORY_API_KEY=${{ env.MEMORY_API_KEY }}' >> .env.production
+          fi
+          
+          # Stop existing services
+          echo 'Stopping existing services...'
+          pkill -f 'enhanced-memory-server.js' || true
+          pkill -f 'simple-server.js' || true
+          sleep 3
+          
+          # Start enhanced memory server
+          echo 'Starting enhanced memory server...'
+          nohup node enhanced-memory-server.js > /var/log/ghost-protocol.log 2>&1 &
+          
+          # Wait for service to start
+          sleep 5
+          
+          # Verify service is running
+          if pgrep -f 'enhanced-memory-server.js' > /dev/null; then
+            echo 'Enhanced memory server started successfully'
+          else
+            echo 'Failed to start enhanced memory server'
+            exit 1
+          fi
+          
+          # Test health endpoint
+          if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+            echo 'Health check passed'
+          else
+            echo 'Health check failed'
+            exit 1
+          fi
+          
+          echo 'Deployment completed successfully!'
+        "
+        
+    - name: Notify Deployment Status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Deployment to ${{ env.VPS_HOST }} completed successfully!"
+        else
+          echo "❌ Deployment to ${{ env.VPS_HOST }} failed!"
+        fi
