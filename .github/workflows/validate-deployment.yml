@@ -142,7 +142,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: validate-secrets
-    if: ${{ secrets.VPS_HOST && secrets.SSH_PRIVATE_KEY }}
+    if: ${{ secrets.VPS_HOST != '' && secrets.SSH_PRIVATE_KEY != '' }}
     
     steps:
     - name: Test SSH Key Format

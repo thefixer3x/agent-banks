@@ -1,0 +1,171 @@
+name: Test Deployment Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-secrets:
+    name: Test GitHub Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+    - name: Test Secret Access
+      run: |
+        echo "🔍 Testing secret access..."
+        
+        # Test if secrets are accessible (without revealing values)
+        if [ -n "${{ secrets.VPS_HOST }}" ]; then
+          echo "✅ VPS_HOST is configured"
+        else
+          echo "❌ VPS_HOST is missing"
+        fi
+        
+        if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          echo "✅ SSH_PRIVATE_KEY is configured"
+        else
+          echo "❌ SSH_PRIVATE_KEY is missing"
+        fi
+        
+        if [ -n "${{ secrets.SSH_PORT }}" ]; then
+          echo "✅ SSH_PORT is configured: ${{ secrets.SSH_PORT }}"
+        else
+          echo "⚠️ SSH_PORT not configured, will default to 22"
+        fi
+        
+        if [ -n "${{ secrets.VPS_USER }}" ]; then
+          echo "✅ VPS_USER is configured: ${{ secrets.VPS_USER }}"
+        else
+          echo "⚠️ VPS_USER not configured, will default to root"
+        fi
+        
+        echo "🎯 Secrets test completed"
+
+  test-ssh-key:
+    name: Test SSH Key Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: test-secrets
+    
+    steps:
+    - name: Validate SSH Key
+      run: |
+        echo "🔍 Testing SSH key format..."
+        
+        # Create SSH key file
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/test_key
+        chmod 600 ~/.ssh/test_key
+        
+        # Test key format
+        if ssh-keygen -l -f ~/.ssh/test_key; then
+          echo "✅ SSH private key format is valid"
+        else
+          echo "❌ SSH private key format is invalid"
+          exit 1
+        fi
+        
+        # Test key type
+        key_type=$(ssh-keygen -l -f ~/.ssh/test_key | awk '{print $4}')
+        echo "🔑 Key type: $key_type"
+        
+        # Clean up
+        rm ~/.ssh/test_key
+        echo "🎯 SSH key test completed"
+
+  test-vps-connection:
+    name: Test VPS Connection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: test-ssh-key
+    
+    steps:
+    - name: Test SSH Connection
+      run: |
+        echo "🔍 Testing VPS connection..."
+        
+        # Setup SSH
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        
+        # Add known hosts
+        if [ -n "${{ secrets.KNOWN_HOSTS }}" ]; then
+          echo "${{ secrets.KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          echo "✅ Known hosts configured"
+        else
+          echo "⚠️ No known_hosts configured, will skip StrictHostKeyChecking"
+        fi
+        
+        # Test connection
+        VPS_HOST="${{ secrets.VPS_HOST }}"
+        VPS_USER="${{ secrets.VPS_USER || 'root' }}"
+        VPS_PORT="${{ secrets.SSH_PORT || '22' }}"
+        
+        echo "📡 Testing connection to $VPS_USER@$VPS_HOST:$VPS_PORT"
+        
+        if [ -n "${{ secrets.KNOWN_HOSTS }}" ]; then
+          # Use strict host key checking
+          if ssh -p "$VPS_PORT" -o ConnectTimeout=10 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'echo "✅ SSH connection successful with strict checking"'; then
+            echo "🎉 VPS connection test PASSED with strict security"
+          else
+            echo "❌ VPS connection test FAILED with strict checking"
+            exit 1
+          fi
+        else
+          # Test without strict checking as fallback
+          if ssh -p "$VPS_PORT" -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" 'echo "✅ SSH connection successful (no strict checking)"'; then
+            echo "⚠️ VPS connection works but without strict host checking"
+            echo "💡 Consider adding KNOWN_HOSTS secret for better security"
+          else
+            echo "❌ VPS connection test FAILED"
+            exit 1
+          fi
+        fi
+        
+        echo "🎯 Connection test completed"
+
+  deployment-readiness:
+    name: Deployment Readiness Summary
+    runs-on: ubuntu-latest
+    needs: [test-secrets, test-ssh-key, test-vps-connection]
+    if: always()
+    
+    steps:
+    - name: Generate Summary
+      run: |
+        echo "## 🚀 Deployment Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.test-secrets.result }}" == "success" ]; then
+          echo "✅ **Secrets Test**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Secrets Test**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.test-ssh-key.result }}" == "success" ]; then
+          echo "✅ **SSH Key Test**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **SSH Key Test**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.test-vps-connection.result }}" == "success" ]; then
+          echo "✅ **VPS Connection Test**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **VPS Connection Test**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.test-secrets.result }}" == "success" ] && [ "${{ needs.test-ssh-key.result }}" == "success" ] && [ "${{ needs.test-vps-connection.result }}" == "success" ]; then
+          echo "🎉 **Overall Status**: READY FOR DEPLOYMENT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Your GitHub Actions deployment setup is fully configured and tested!" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ **Overall Status**: NEEDS ATTENTION" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please review the failed tests above and fix any issues." >> $GITHUB_STEP_SUMMARY
+        fi
