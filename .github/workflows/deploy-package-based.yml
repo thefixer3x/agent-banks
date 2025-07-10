@@ -68,9 +68,16 @@ jobs:
         cp simple-server.js ${PACKAGE_DIR}/
         cp package.json ${PACKAGE_DIR}/
         cp package-lock.json ${PACKAGE_DIR}/
-        cp test-*.js ${PACKAGE_DIR}/
         cp smart-memory-mcp-client.js ${PACKAGE_DIR}/
         cp store-memory-cli.js ${PACKAGE_DIR}/
+        cp api-gateway-server.js ${PACKAGE_DIR}/
+        
+        # Copy test files
+        for testfile in test-*.js; do
+          if [ -f "$testfile" ]; then
+            cp "$testfile" ${PACKAGE_DIR}/
+          fi
+        done
         
         # Create VPS-specific configuration
         echo "⚙️  Creating VPS configuration..."
