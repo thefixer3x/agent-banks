@@ -1,0 +1,401 @@
+# docker-compose.yml - Complete Memory-as-a-Service Stack
+version: '3.8'
+
+services:
+  memory-api:
+    build:
+      context: ./memory-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=memory_service
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - memory-api
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:
+
+---
+# memory-service/Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S memory-service -u 1001
+
+# Change ownership and switch to user
+RUN chown -R memory-service:nodejs /app
+USER memory-service
+
+EXPOSE 3001
+
+CMD ["npm", "start"]
+
+---
+# .env.example - Environment Configuration Template
+# Copy to .env and fill in your values
+
+# Service Configuration
+NODE_ENV=production
+PORT=3001
+API_VERSION=v1
+
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=
+
+# Database Configuration (if not using Supabase)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=memory_service
+POSTGRES_USER=memory_user
+POSTGRES_PASSWORD=secure_password
+
+# Authentication
+JWT_SECRET=your-super-secure-jwt-secret-key
+API_KEY_HEADER=X-API-Key
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# External Service API Keys
+OPENAI_API_KEY=sk-your-openai-api-key
+CLICKUP_API_TOKEN=pk_your-clickup-token
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+
+# Logging
+LOG_LEVEL=info
+LOG_FILE=./logs/memory-service.log
+
+# Security
+ALLOWED_ORIGINS=https://yourapp.com,https://anotherapp.com
+CORS_ENABLED=true
+
+# Monitoring
+ENABLE_METRICS=true
+METRICS_PORT=9090
+
+---
+# memory-service/package.json
+{
+  "name": "memory-as-a-service",
+  "version": "1.0.0",
+  "description": "Standalone Memory-as-a-Service API with tool orchestration",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "docker:build": "docker build -t memory-service .",
+    "docker:run": "docker run -p 3001:3001 memory-service",
+    "deploy": "npm run build && npm run docker:build"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "express-rate-limit": "^6.8.1",
+    "@supabase/supabase-js": "^2.38.4",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "axios": "^1.5.0",
+    "eventsource": "^2.0.2",
+    "winston": "^3.10.0",
+    "joi": "^17.9.2",
+    "uuid": "^9.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.0",
+    "@types/express": "^4.17.17",
+    "@types/cors": "^2.8.13",
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/uuid": "^9.0.2",
+    "typescript": "^5.1.6",
+    "ts-node-dev": "^2.0.0",
+    "jest": "^29.6.2",
+    "@types/jest": "^29.5.3",
+    "supertest": "^6.3.3",
+    "eslint": "^8.47.0"
+  }
+}
+
+---
+# Usage Examples
+
+## Example 1: Basic Memory Operations
+```typescript
+import { createMemoryClient } from 'memory-service-sdk';
+
+const client = createMemoryClient({
+  baseUrl: 'https://memory-api.yourcompany.com',
+  apiKey: 'mas_your_api_key_here'
+});
+
+// Create a memory
+const memory = await client.createMemory({
+  namespace: 'user-chat',
+  context: 'customer-support',
+  title: 'Customer prefers email communication',
+  content: 'User ID 12345 prefers email over phone calls for support',
+  memoryType: 'knowledge',
+  tags: ['customer-preference', 'communication']
+});
+
+// Search memories
+const results = await client.searchMemories({
+  query: 'customer communication preferences',
+  namespace: 'user-chat',
+  options: { limit: 5, threshold: 0.8 }
+});
+
+console.log('Found memories:', results.data);
+```
+
+## Example 2: Tool Orchestration
+```typescript
+// Execute ClickUp task creation
+const taskResult = await client.executeTool({
+  namespace: 'project-management',
+  context: 'sprint-planning',
+  tool: 'clickup',
+  action: 'create_task',
+  parameters: {
+    list_id: '123456789',
+    name: 'Implement memory search feature',
+    description: 'Add semantic search to the chat interface',
+    priority: 2,
+    assignees: [12345]
+  }
+});
+
+// Execute with async processing
+const asyncExecution = await client.executeTool({
+  namespace: 'data-processing',
+  context: 'bulk-import',
+  tool: 'database',
+  action: 'bulk_import_memories',
+  parameters: { file_url: 'https://example.com/memories.json' },
+  async: true
+});
+
+// Check status later
+const status = await client.getExecutionStatus(asyncExecution.data.executionId);
+```
+
+## Example 3: Namespace-Scoped Client
+```typescript
+import { createNamespaceClient } from 'memory-service-sdk';
+
+const chatNamespace = createNamespaceClient({
+  baseUrl: 'https://memory-api.yourcompany.com',
+  apiKey: 'mas_your_api_key_here'
+}, 'user-chat-sessions');
+
+// All operations are automatically scoped to this namespace
+await chatNamespace.create({
+  context: 'session-12345',
+  title: 'User asked about pricing',
+  content: 'User inquired about enterprise pricing plans',
+  memoryType: 'conversation'
+});
+
+const chatHistory = await chatNamespace.search('pricing questions');
+```
+
+## Example 4: Real-time Updates
+```typescript
+// Subscribe to memory updates in real-time
+const unsubscribe = client.subscribeToUpdates(
+  'user-chat', 
+  ['memory.created', 'memory.updated', 'tool.executed'],
+  (event) => {
+    console.log('Real-time update:', event);
+    
+    if (event.type === 'memory.created') {
+      // Handle new memory
+      updateUI(event.data.memory);
+    }
+    
+    if (event.type === 'tool.executed') {
+      // Handle tool execution completion
+      notifyUser(event.data.result);
+    }
+  }
+);
+
+// Later: unsubscribe when component unmounts
+unsubscribe();
+```
+
+## Example 5: React Integration
+```typescript
+import { useMemoryService } from 'memory-service-sdk';
+
+function ChatComponent() {
+  const { client, searchMemories, createMemory } = useMemoryService({
+    baseUrl: process.env.REACT_APP_MEMORY_API_URL,
+    apiKey: process.env.REACT_APP_MEMORY_API_KEY
+  });
+
+  const handleMessage = async (message: string) => {
+    // Search for relevant context
+    const context = await searchMemories({
+      query: message,
+      namespace: 'chat-context',
+      options: { limit: 3 }
+    });
+
+    // Send to AI with context
+    const aiResponse = await sendToAI(message, context.data);
+
+    // Store the interaction
+    await createMemory({
+      namespace: 'chat-context',
+      context: 'conversation',
+      title: `User: ${message.slice(0, 50)}...`,
+      content: `User: ${message}\nAI: ${aiResponse}`,
+      memoryType: 'conversation'
+    });
+  };
+
+  return <ChatInterface onMessage={handleMessage} />;
+}
+```
+
+---
+# Deployment Commands
+
+## Development
+```bash
+# Install dependencies
+npm install
+
+# Start in development mode
+npm run dev
+
+# Run with Docker
+docker-compose up --build
+```
+
+## Production
+```bash
+# Build and deploy
+npm run build
+docker-compose -f docker-compose.prod.yml up -d
+
+# Scale the service
+docker-compose up --scale memory-api=3
+
+# Monitor logs
+docker-compose logs -f memory-api
+```
+
+## Kubernetes Deployment
+```yaml
+# k8s/memory-service-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: memory-service
+  template:
+    metadata:
+      labels:
+        app: memory-service
+    spec:
+      containers:
+      - name: memory-service
+        image: memory-service:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: memory-service-secrets
+              key: supabase-url
+        - name: REDIS_URL
+          value: "redis://redis-service:6379"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+```
