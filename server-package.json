@@ -1,0 +1,27 @@
+{
+  "name": "smart-memory-server",
+  "version": "2.0.0",
+  "description": "Enhanced Smart Memory Server with Vector Search",
+  "type": "module",
+  "main": "enhanced-memory-server.js",
+  "scripts": {
+    "start": "node enhanced-memory-server.js",
+    "dev": "node enhanced-memory-server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "memory",
+    "vector-search",
+    "ai",
+    "embeddings",
+    "supabase"
+  ]
+}

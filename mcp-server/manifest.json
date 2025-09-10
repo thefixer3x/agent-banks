@@ -1,0 +1,145 @@
+{
+  "name": "sd-ghost-protocol",
+  "version": "1.0.0",
+  "description": "Memory-aware AI assistant with persistent conversation context and tool orchestration",
+  "author": "CascadeProjects",
+  "license": "MIT",
+  "capabilities": {
+    "conversation": {
+      "persistent": true,
+      "multi_turn": true,
+      "context_aware": true
+    },
+    "memory": {
+      "vector_search": true,
+      "semantic_retrieval": true,
+      "auto_storage": true
+    },
+    "tools": {
+      "orchestration": true,
+      "agentic_loops": true,
+      "parallel_execution": false
+    },
+    "models": [
+      "openai",
+      "anthropic",
+      "perplexity",
+      "gemini",
+      "deepseek",
+      "mistral"
+    ]
+  },
+  "endpoints": {
+    "base_url": "https://your-domain.com/api",
+    "websocket": "wss://your-domain.com/ws",
+    "health": "/health",
+    "chat": "/chat",
+    "memory": "/memory",
+    "tools": "/tools"
+  },
+  "authentication": {
+    "type": "bearer",
+    "header": "Authorization"
+  },
+  "tools": [
+    {
+      "name": "search_memories",
+      "description": "Search through stored memories using semantic similarity",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "Search query for finding relevant memories"
+        },
+        "limit": {
+          "type": "number",
+          "required": false,
+          "default": 5,
+          "description": "Maximum number of results to return"
+        },
+        "threshold": {
+          "type": "number",
+          "required": false,
+          "default": 0.7,
+          "description": "Minimum similarity threshold (0-1)"
+        }
+      }
+    },
+    {
+      "name": "create_memory",
+      "description": "Store new information in the memory system",
+      "parameters": {
+        "title": {
+          "type": "string",
+          "required": true,
+          "description": "Title for the memory entry"
+        },
+        "content": {
+          "type": "string",
+          "required": true,
+          "description": "Content to store in memory"
+        },
+        "tags": {
+          "type": "array",
+          "required": false,
+          "description": "Tags for categorizing the memory"
+        },
+        "memory_type": {
+          "type": "string",
+          "required": false,
+          "default": "knowledge",
+          "enum": ["conversation", "knowledge", "project", "context", "reference"]
+        }
+      }
+    },
+    {
+      "name": "get_conversation_context",
+      "description": "Retrieve the full conversation history for the current session",
+      "parameters": {
+        "session_id": {
+          "type": "string",
+          "required": false,
+          "description": "Specific session ID to retrieve"
+        },
+        "limit": {
+          "type": "number",
+          "required": false,
+          "default": 50,
+          "description": "Maximum number of messages to return"
+        }
+      }
+    },
+    {
+      "name": "analyze_conversation",
+      "description": "Analyze conversation patterns and extract insights",
+      "parameters": {
+        "focus_area": {
+          "type": "string",
+          "required": true,
+          "description": "Area to focus analysis on"
+        },
+        "include_memories": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Include related memories in analysis"
+        }
+      }
+    }
+  ],
+  "configuration": {
+    "max_tokens": 4000,
+    "temperature": 0.7,
+    "timeout": 30000,
+    "retry_attempts": 3,
+    "rate_limit": {
+      "requests_per_minute": 60,
+      "tokens_per_minute": 40000
+    }
+  },
+  "requirements": {
+    "node": ">=18.0.0",
+    "memory": "512MB",
+    "storage": "1GB"
+  }
+}
