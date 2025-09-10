@@ -209,4 +209,4 @@ cython_debug/
 
 # Local development
 local_config.py
-config_local.py
+config_local.pyarchive/
