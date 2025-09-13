@@ -1,0 +1,41 @@
+# Netlify deployment configuration for SD-Ghost Protocol
+
+[build]
+  # Directory to publish (Vite output)
+  publish = "dist"
+  
+  # Build command
+  command = "npm run build"
+  
+  # Functions directory (if using Netlify functions)
+  # functions = "netlify/functions"
+
+[build.environment]
+  # Node version for builds
+  NODE_VERSION = "18"
+
+# Redirects for single-page application
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers for security and performance
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "same-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Environment variable template (these should be set in Netlify dashboard)
+[context.production.environment]
+  VITE_SUPABASE_URL = "YOUR_SUPABASE_URL"
+  VITE_SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"

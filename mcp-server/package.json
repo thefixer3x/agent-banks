@@ -1,0 +1,43 @@
+{
+  "name": "sd-ghost-protocol-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for SD-Ghost Protocol - Memory-aware AI assistant",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "hostinger": "node hostinger-mcp.js",
+    "dev": "nodemon index.js",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd .. && npm run build",
+    "build:server": "echo 'Server ready'",
+    "test": "node --test",
+    "lint": "eslint .",
+    "prepare-deployment": "node prepare-deployment.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "ai",
+    "memory",
+    "assistant",
+    "claude",
+    "supabase"
+  ],
+  "author": "CascadeProjects",
+  "license": "MIT"
+}

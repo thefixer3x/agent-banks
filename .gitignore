@@ -210,3 +210,12 @@ cython_debug/
 # Local development
 local_config.py
 config_local.py
+
+# Exclude specified sensitive/cache directories and files
+.batches/
+.cache_ggshield
+.claude/
+.env.production
+.npmrc
+
+archive/
